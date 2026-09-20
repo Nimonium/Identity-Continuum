@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Identity Continuum — User Portal</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        base: '#F4F6F9',
+                        ink: '#292C34',
+                        primary: '#001B94',
+                        accent: '#32B0F4',
+                        status: {
+                            pass: '#098D85',
+                            review: '#EFBF04',
+                            fail: '#EF4444'
+                        },
+                        hairline: '#E5E7EB'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    boxShadow: {
+                        'bento': '0 2px 8px -2px rgba(10, 15, 29, 0.05), 0 4px 16px -4px rgba(10, 15, 29, 0.02)',
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer components {
+            .bento-tile {
+                @apply bg-white rounded-xl border border-hairline shadow-bento;
+            }
+            .btn-primary {
+                @apply bg-primary text-white font-semibold rounded-lg hover:bg-primary/90 focus:ring-4 focus:ring-primary/20 transition-all outline-none inline-flex items-center justify-center;
+                padding: 12px 28px;
+            }
+            .btn-outline {
+                @apply bg-transparent text-primary border-[1.5px] border-primary/20 font-semibold rounded-lg hover:bg-primary/5 focus:ring-4 focus:ring-primary/10 transition-all outline-none inline-flex items-center justify-center;
+                padding: 12px 28px;
+            }
+            .form-input {
+                @apply bg-base border border-hairline rounded-lg px-4 py-2.5 text-ink outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-ink/40;
+            }
+            .badge {
+                @apply inline-flex items-center justify-center rounded-full text-xs font-semibold px-2.5 py-1 tracking-wide;
+            }
+            .badge-success {
+                @apply bg-status-pass/10 text-status-pass;
+            }
+            .badge-warning {
+                @apply bg-status-review/10 text-status-review;
+            }
+            .badge-fail {
+                @apply bg-status-fail/10 text-status-fail;
+            }
+            .screen {
+                @apply hidden flex-grow flex-col relative w-full;
+            }
+            .screen.active {
+                @apply flex;
+            }
+        }
+        
+        @keyframes syncColor {
+            0%, 100% {
+                color: theme('colors.primary');
+                background-color: rgba(0, 27, 148, 0.1);
+                animation-timing-function: cubic-bezier(0.8,0,1,1);
+            }
+            50% {
+                color: theme('colors.status.pass');
+                background-color: rgba(9, 141, 133, 0.1);
+                animation-timing-function: cubic-bezier(0,0,0.2,1);
+            }
+        }
+        .animate-sync-color {
+            animation: syncColor 3s infinite;
+        }
+        @keyframes scanLaser {
+            0% { top: 8%; opacity: 0.2; }
+            50% { top: 88%; opacity: 0.95; }
+            100% { top: 8%; opacity: 0.2; }
+        }
+        .animate-scan {
+            animation: scanLaser 2.4s ease-in-out infinite;
+        }
+    </style>
+    
+    <!-- Phosphor Icons / Lucide (Using Lucide via CDN) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-base text-ink font-sans antialiased min-h-screen flex">
+
+    <!-- Sidebar (Visible only on auth screens) -->
+    <aside id="sidebar" class="w-64 border-r border-hairline bg-base hidden flex-col shrink-0">
+        <div class="p-6 border-b border-hairline flex items-center gap-3">
+            <i data-lucide="scan-face" class="text-primary w-6 h-6"></i>
+            <span class="font-display font-semibold tracking-wide text-sm">IDENTITY CONTINUUM</span>
+        </div>
+        <nav class="flex-grow p-4 space-y-1">
+            <button id="nav-dashboard" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors" onclick="showScreen('screen-landing')" data-nav="screen-landing">
+                <i data-lucide="home" class="w-4 h-4"></i> Home
+            </button>
+            <button id="nav-verify" class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors" data-nav="screen-verify">
+                <i data-lucide="shield-alert" class="w-4 h-4"></i> Verify Identity
+            </button>
+        </nav>
+        <div class="p-4 border-t border-hairline">
+            <button class="w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium text-ink/60 hover:text-status-fail transition-colors" data-nav="screen-landing">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Sign Out
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main id="app-root" class="flex-grow flex flex-col relative min-w-0 h-screen overflow-y-auto overflow-x-hidden">
+        
+        <!-- Auth Header (Visible only on auth screens) -->
+        <header id="auth-header" class="h-16 border-b border-hairline px-6 hidden items-center justify-between bg-base/50 backdrop-blur-md sticky top-0 z-10 shrink-0">
+            <div class="flex items-center gap-4">
+                <button class="md:hidden text-ink/70">
+                    <i data-lucide="menu" class="w-5 h-5"></i>
+                </button>
+                <span class="font-display font-semibold tracking-wide text-sm md:hidden">IDENTITY CONTINUUM</span>
+            </div>
+        </header>
+
+        <!-- ============================================== -->
+        <!-- SCREEN 1: LANDING                              -->
+        <!-- ============================================== -->
+        <section id="screen-landing" class="screen active relative bg-base">
+            
+            <!-- Dynamic Background -->
+            <div class="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                <div class="absolute -top-[20%] -right-[10%] w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px]"></div>
+                <div class="absolute top-[40%] -left-[10%] w-[600px] h-[600px] bg-[#32B0F4]/10 rounded-full blur-[100px]"></div>
+                <div class="absolute -bottom-[20%] right-[20%] w-[700px] h-[500px] bg-primary/5 rounded-[100%] blur-[120px]"></div>
+            </div>
+
+            <div id="home" class="relative z-10"></div>
+            <!-- Nav -->
+            <nav class="relative z-50 w-full px-6 py-4 flex items-center justify-between border-b border-hairline bg-base/60 backdrop-blur-md sticky top-0">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="scan-face" class="text-primary w-6 h-6"></i>
+                    <span class="font-display font-semibold tracking-wide text-lg">IDENTITY CONTINUUM</span>
+                </div>
+                <div class="hidden md:flex items-center gap-8 text-sm font-medium">
+                    <a href="#" data-nav="#home" class="hover:text-primary transition-colors">Home</a>
+                    <a href="#" data-nav="#process" class="hover:text-primary transition-colors">Process</a>
+                    <a href="#" data-nav="#privacy" class="hover:text-primary transition-colors">Privacy</a>
+                    <a href="#" data-nav="#help" class="hover:text-primary transition-colors">Help</a>
+                </div>
+                <div>
+                    <button class="btn-primary text-sm !px-5 !py-2" data-nav="screen-verify">Verify My Identity</button>
+                </div>
+            </nav>
+
+            <!-- Hero -->
+            <div class="relative z-10 max-w-7xl mx-auto px-6 py-24 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                <div class="text-left">
+                    <h1 class="font-display text-5xl lg:text-7xl leading-tight mb-8">
+                        Verify once. <br>
+                        <span class="text-primary">Cross borders with confidence.</span>
+                    </h1>
+                    <p class="text-xl text-ink/70 mb-10 max-w-xl">
+                        A seamless, secure way to prove your identity. Self-serve verification designed to respect your privacy and speed up your travel.
+                    </p>
+                    <div class="flex flex-wrap items-center justify-start gap-4">
+                        <button class="btn-primary text-lg !px-8 !py-4 shadow-lg shadow-primary/20" data-nav="screen-verify">Verify My Identity</button>
+                    </div>
+                </div>
+                
+                <!-- Side-by-Side Image -->
+                <div class="relative w-full max-w-lg lg:max-w-none mx-auto lg:mx-0">
+                    <!-- Glow behind image -->
+                    <div class="absolute -inset-4 bg-gradient-to-tr from-primary/30 to-[#32B0F4]/30 rounded-[2.5rem] blur-2xl opacity-60"></div>
+                    
+                    <!-- The actual image -->
+                    <img src="hero-image.jpg" alt="Traveler using phone for verification" class="relative rounded-[2rem] shadow-2xl border-4 border-white object-cover w-full h-[500px]">
+                    
+                    <!-- Floating verification badge -->
+                    <div class="absolute -bottom-8 -left-8 md:-left-12 bg-white/90 backdrop-blur-md p-5 rounded-2xl shadow-xl border border-white/50 flex items-center gap-4">
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center animate-sync-color" style="animation-duration: 3s;">
+                            <i data-lucide="shield-check" class="w-6 h-6"></i>
+                        </div>
+                        <div class="pr-4">
+                            <p class="font-bold text-ink">Identity Verified</p>
+                            <p class="text-xs font-semibold text-ink/50 uppercase tracking-wider mt-0.5">Ready to travel</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trust strip -->
+            <div id="privacy" class="border-y border-hairline bg-white/50 py-16">
+                <div class="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-16 text-center text-sm font-medium text-ink/70">
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="shield-check" class="text-primary"></i>
+                        <span>Your data is never stored raw</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="eye-off" class="text-primary"></i>
+                        <span>Verified without exposing personal data</span>
+                    </div>
+                    <div class="flex flex-col items-center gap-2">
+                        <i data-lucide="globe-2" class="text-primary"></i>
+                        <span>Used at 40+ government checkpoints</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Process -->
+            <div id="process" class="max-w-7xl mx-auto px-6 py-16">
+                <h2 class="font-display text-4xl mb-12 text-center">Process</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
+                    <div class="flex flex-col items-center text-center group">
+                        <div class="font-display text-8xl text-ink/5 font-bold leading-none select-none group-hover:text-primary/20 transition-colors mb-4">01</div>
+                        <h3 class="text-2xl font-semibold mb-3">Upload your ID</h3>
+                        <p class="text-ink/60 text-xl">Provide a clear photo of your passport, visa, or national ID.</p>
+                    </div>
+                    <div class="flex flex-col items-center text-center group">
+                        <div class="font-display text-8xl text-ink/5 font-bold leading-none select-none group-hover:text-primary/20 transition-colors mb-4">02</div>
+                        <h3 class="text-2xl font-semibold mb-3">Take a photo</h3>
+                        <p class="text-ink/60 text-xl">A quick selfie to ensure you match your provided document.</p>
+                    </div>
+                    <div class="flex flex-col items-center text-center group">
+                        <div class="font-display text-8xl text-ink/5 font-bold leading-none select-none group-hover:text-primary/20 transition-colors mb-4">03</div>
+                        <h3 class="text-2xl font-semibold mb-3">We verify</h3>
+                        <p class="text-ink/60 text-xl">Our system securely checks your details in seconds.</p>
+                    </div>
+                    <div class="flex flex-col items-center text-center group">
+                        <div class="font-display text-8xl text-ink/5 font-bold leading-none select-none group-hover:text-primary/20 transition-colors mb-4">04</div>
+                        <h3 class="text-2xl font-semibold mb-3">Get result</h3>
+                        <p class="text-ink/60 text-xl">Receive your trust score and cross borders easily.</p>
+                    </div>
+                </div>
+            </div>
+
+            <footer id="help" class="mt-auto border-t border-hairline py-8 text-center text-sm text-ink/50 bg-base">
+                <div class="flex justify-center items-center gap-6 mb-4">
+                    <a href="#" class="hover:text-ink">Terms</a>
+                    <a href="#" class="hover:text-ink">Privacy Policy</a>
+                    <a href="#" class="hover:text-ink">Contact</a>
+                </div>
+                <p>&copy; 2026 Identity Continuum. All rights reserved.</p>
+            </footer>
+        </section>
+
+
+
+        <!-- ============================================== -->
+        <!-- SCREEN 3: DASHBOARD                            -->
+        <!-- ============================================== -->
+        <section id="screen-dashboard" class="screen relative p-6 md:p-12 max-w-7xl mx-auto w-full space-y-12">
+            <!-- Dynamic Background -->
+            <div class="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                <div class="absolute -top-40 right-0 w-[600px] h-[600px] bg-[#32B0F4]/10 rounded-full blur-[120px]"></div>
+                <div class="absolute bottom-0 left-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px]"></div>
+            </div>
+            
+            <div class="relative z-10 w-full space-y-12">
+            <!-- Hero Card -->
+            <div class="bento-tile p-12 flex flex-col items-center justify-center text-center hover:border-primary/40 cursor-pointer transition-colors group" data-nav="screen-verify">
+                <div class="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-6 group-hover:scale-105 transition-transform">
+                    <i data-lucide="scan-face" class="w-12 h-12"></i>
+                </div>
+                <h2 class="font-display text-4xl font-semibold mb-3">Start Verification</h2>
+                <p class="text-ink/60 text-lg max-w-lg">Submit your documents and photo to securely verify your identity for fast-track border travel.</p>
+            </div>
+            <!-- Activity List -->
+            <div>
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-sm uppercase tracking-wider font-semibold text-ink/50">Recent Verifications</h3>
+                    <button type="button" id="btn-refresh-history" onclick="loadTravelerHistory(true)" class="text-xs text-ink/60 hover:text-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline hover:border-primary/40 bg-white/70 backdrop-blur-xs transition-colors shadow-xs" title="Refresh recent verifications list">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5" id="icon-refresh-history"></i> Refresh
+                    </button>
+                </div>
+                <div id="traveler-recent-list" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bento-tile p-6 flex flex-col justify-between hover:bg-black/5 transition-colors gap-4">
+                        <div class="flex items-start justify-between">
+                            <span class="badge badge-success">CLEARED</span>
+                        </div>
+                        <div>
+                            <div class="text-lg font-semibold text-ink">Passport Verification</div>
+                            <div class="text-sm text-ink/50 mt-1">Oct 12, 2025 • 14:30</div>
+                        </div>
+                    </div>
+                    <div class="bento-tile p-6 flex flex-col justify-between hover:bg-black/5 transition-colors gap-4">
+                        <div class="flex items-start justify-between">
+                            <span class="badge badge-success">CLEARED</span>
+                        </div>
+                        <div>
+                            <div class="text-lg font-semibold text-ink">National ID Verification</div>
+                            <div class="text-sm text-ink/50 mt-1">Jan 05, 2024 • 09:15</div>
+                        </div>
+                    </div>
+                    <div class="bento-tile p-6 flex flex-col justify-between hover:bg-black/5 transition-colors gap-4">
+                        <div class="flex items-start justify-between">
+                            <span class="badge badge-warning">ADDITIONAL VERIFICATION REQUIRED</span>
+                        </div>
+                        <div>
+                            <div class="text-lg font-semibold text-ink">Visa Verification</div>
+                            <div class="text-sm text-ink/50 mt-1">Aug 22, 2023 • 11:45</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+
+        <!-- ============================================== -->
+        <!-- SCREEN 5: VERIFY FLOW                          -->
+        <!-- ============================================== -->
+        <section id="screen-verify" class="screen relative p-6 md:p-12 max-w-7xl mx-auto w-full">
+            <!-- Hidden real file inputs -->
+            <input type="file" id="input-doc-file" accept="image/*" class="hidden">
+            <input type="file" id="input-photo-file" accept="image/*" class="hidden">
+
+            <!-- Dynamic Background -->
+            <div class="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+                <div class="absolute top-1/4 -right-20 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]"></div>
+                <div class="absolute bottom-10 left-10 w-[400px] h-[400px] bg-[#32B0F4]/5 rounded-full blur-[100px]"></div>
+            </div>
+            
+            <div class="relative z-10 w-full flex flex-col min-h-full">
+            
+            <!-- Flow Controls Header -->
+            <div class="flex items-center justify-between mb-4 max-w-2xl mx-auto w-full">
+                <div class="text-xs uppercase tracking-wider font-semibold text-ink/50 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                    Self-Verification Flow
+                </div>
+                <button type="button" onclick="resetVerificationFlow(true)" class="text-xs text-ink/60 hover:text-primary flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-hairline hover:border-primary/40 bg-white/70 backdrop-blur-xs transition-colors shadow-xs" title="Reset all fields and start a new scan">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset Form / New Scan
+                </button>
+            </div>
+
+            <!-- Stepper -->
+            <div class="flex items-center justify-between mb-8 relative max-w-2xl mx-auto w-full z-0">
+                <div class="absolute left-0 top-4 w-full h-[1.5px] bg-hairline -z-10"></div>
+                
+                <div class="flex flex-col items-center step-indicator active" data-step="1">
+                    <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-semibold ring-4 ring-[#fdfcfb]">1</div>
+                    <span class="text-xs font-semibold text-primary mt-2">Upload</span>
+                </div>
+                <div class="flex flex-col items-center step-indicator" data-step="2">
+                    <div class="w-8 h-8 rounded-full bg-white text-ink/40 border border-hairline flex items-center justify-center text-xs font-semibold">2</div>
+                    <span class="text-xs font-medium text-ink/40 mt-2">Capture</span>
+                </div>
+                <div class="flex flex-col items-center step-indicator" data-step="3">
+                    <div class="w-8 h-8 rounded-full bg-white text-ink/40 border border-hairline flex items-center justify-center text-xs font-semibold">3</div>
+                    <span class="text-xs font-medium text-ink/40 mt-2">Review</span>
+                </div>
+                <div class="flex flex-col items-center step-indicator" data-step="4">
+                    <div class="w-8 h-8 rounded-full bg-white text-ink/40 border border-hairline flex items-center justify-center text-xs font-semibold">4</div>
+                    <span class="text-xs font-medium text-ink/40 mt-2">Result</span>
+                </div>
+            </div>
+
+            <!-- 2-Panel Layout -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+                
+                <!-- Left: Document Upload -->
+                <div class="bento-tile p-8 md:p-10 flex flex-col">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-2xl font-bold flex items-center gap-3 text-ink">
+                            <i data-lucide="file-text" class="w-7 h-7 text-primary"></i> Upload your ID
+                        </h3>
+                        <span id="doc-status-pill" class="badge bg-ink/5 text-ink/60 text-xs py-1 px-3">Required</span>
+                    </div>
+                    
+                    <div class="mb-5">
+                        <label class="block text-xs tracking-widest font-bold text-ink/60 mb-2 uppercase">Document Type</label>
+                        <select id="select-doc-type" class="form-input w-full text-base py-3 border-2 border-hairline focus:border-primary focus:ring-4 focus:ring-primary/10 shadow-sm rounded-xl transition-all font-medium text-ink">
+                            <option value="PASSPORT">Passport</option>
+                            <option value="NATIONAL_ID">National ID Card</option>
+                            <option value="DRIVERS_LICENSE">Driver's License</option>
+                            <option value="VISA">Visa</option>
+                        </select>
+                    </div>
+                    
+                    <div id="doc-upload-box" class="flex-grow border-2 border-dashed border-primary/30 rounded-2xl bg-primary/5 flex flex-col items-center justify-center p-6 text-center hover:bg-primary/10 hover:border-primary/50 transition-colors cursor-pointer group min-h-[340px] relative overflow-hidden" onclick="triggerDocUpload()">
+                        <!-- Empty Prompt -->
+                        <div id="doc-upload-prompt" class="flex flex-col items-center">
+                            <div class="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:scale-110 transition-transform">
+                                <i data-lucide="upload-cloud" class="w-8 h-8 text-primary"></i>
+                            </div>
+                            <p class="text-base font-semibold mb-1 text-ink">Click or drag document here</p>
+                            <p class="text-xs text-ink/50 max-w-xs">Supports official Passport, ID card, or Visa scans (JPEG, PNG, WebP up to 10MB)</p>
+                        </div>
+                        <!-- Uploaded Preview -->
+                        <div id="doc-upload-success" class="hidden w-full h-full flex flex-col items-center justify-center p-2">
+                            <img id="doc-preview-img" class="max-h-[220px] max-w-full object-contain rounded-xl shadow-md border border-hairline mb-3" alt="Uploaded Document" />
+                            <div class="flex items-center gap-2 text-status-pass text-sm font-semibold">
+                                <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                                <span id="doc-filename-display" class="font-mono text-xs text-ink truncate max-w-[220px]">passport.jpg</span>
+                            </div>
+                            <span class="text-[11px] text-primary hover:underline mt-1 font-medium">Click to change document</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Photo Capture with Real Live Webcam -->
+                <div class="bento-tile p-8 md:p-10 flex flex-col">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-2xl font-bold flex items-center gap-3 text-ink">
+                            <i data-lucide="camera" class="w-7 h-7 text-primary"></i> Take a photo
+                        </h3>
+                        <span id="cam-status-pill" class="badge badge-success flex items-center gap-1.5 text-xs py-1 px-3">
+                            <span class="w-2 h-2 rounded-full bg-status-pass animate-pulse"></span>
+                            <span id="cam-status-text">Live Camera</span>
+                        </span>
+                    </div>
+                    
+                    <div class="flex-grow bg-slate-950 rounded-2xl border border-hairline relative overflow-hidden flex flex-col items-center justify-center min-h-[340px] shadow-inner">
+                        
+                        <!-- 1. Live Video Stream Viewfinder -->
+                        <div id="camera-live-container" class="absolute inset-0 w-full h-full flex items-center justify-center bg-black">
+                            <video id="webcam-video" autoplay playsinline muted class="w-full h-full object-cover -scale-x-100"></video>
+                            
+                            <!-- Biometric Target Reticle / Face Guide Overlay -->
+                            <div id="camera-overlay" class="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-5 z-10">
+                                <!-- Top Guidance Pill -->
+                                <div id="cam-guide-pill" class="bg-black/60 backdrop-blur-md text-white/95 text-xs font-semibold px-4 py-1.5 rounded-full border border-white/20 tracking-wide uppercase flex items-center gap-2 shadow-lg transition-all duration-300">
+                                    <i data-lucide="scan" id="cam-guide-icon" class="w-3.5 h-3.5 text-accent"></i>
+                                    <span id="cam-guide-text">Position face inside the oval</span>
+                                </div>
+                                
+                                <!-- Oval Frame with Scanning Animation & SVG Lock Countdown Ring -->
+                                <div id="biometric-oval-frame" class="relative w-48 h-64 my-auto flex items-center justify-center">
+                                    <!-- Circular/Oval Countdown SVG Ring -->
+                                    <svg class="absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible" viewBox="0 0 192 256">
+                                        <!-- Base Track -->
+                                        <ellipse cx="96" cy="128" rx="90" ry="122" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="3" />
+                                        <!-- Animated Green Progress Indicator -->
+                                        <ellipse id="lock-progress-circle" cx="96" cy="128" rx="90" ry="122" fill="none" stroke="#10b981" stroke-width="5" stroke-dasharray="670" stroke-dashoffset="670" stroke-linecap="round" style="transition: stroke-dashoffset 0.08s linear, stroke 0.2s ease;" />
+                                    </svg>
+
+                                    <!-- Oval Ring Viewport -->
+                                    <div id="biometric-oval-ring" class="w-[180px] h-[244px] rounded-[50%] border-2 border-dashed border-white/60 relative overflow-hidden shadow-[0_0_30px_rgba(50,176,244,0.3)] transition-all duration-300 flex items-center justify-center">
+                                        <!-- Laser Scanning Beam -->
+                                        <div id="biometric-laser" class="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-accent to-transparent opacity-80 animate-scan"></div>
+
+                                        <!-- Lock Center Floating Badge -->
+                                        <div id="biometric-lock-badge" class="flex flex-col items-center justify-center opacity-0 transition-opacity duration-200 z-10">
+                                            <div class="w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-300 shadow-lg animate-pulse">
+                                                <i data-lucide="scan-face" class="w-6 h-6 text-emerald-400"></i>
+                                            </div>
+                                            <span id="biometric-countdown-text" class="text-[11px] font-bold text-emerald-300 mt-1.5 tracking-wider uppercase font-mono drop-shadow">HOLD STILL...</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Corner brackets -->
+                                    <div class="biometric-bracket absolute -top-2 -left-2 w-5 h-5 border-t-2 border-l-2 border-accent transition-colors duration-300"></div>
+                                    <div class="biometric-bracket absolute -top-2 -right-2 w-5 h-5 border-t-2 border-r-2 border-accent transition-colors duration-300"></div>
+                                    <div class="biometric-bracket absolute -bottom-2 -left-2 w-5 h-5 border-b-2 border-l-2 border-accent transition-colors duration-300"></div>
+                                    <div class="biometric-bracket absolute -bottom-2 -right-2 w-5 h-5 border-b-2 border-r-2 border-accent transition-colors duration-300"></div>
+                                </div>
+
+                                <!-- Bottom Status Bar on Video -->
+                                <div id="cam-bottom-status" class="text-[11px] text-white/85 font-mono bg-black/60 px-3.5 py-1 rounded-md backdrop-blur-sm border border-white/10 flex items-center gap-2">
+                                    <span id="cam-lock-dot" class="w-2 h-2 rounded-full bg-accent animate-ping"></span>
+                                    <span id="cam-bottom-text">MTCNN Bio-Lock • Aligning feed...</span>
+                                </div>
+                            </div>
+
+                            <!-- Camera Shutter Flash Effect -->
+                            <div id="camera-flash" class="absolute inset-0 bg-white pointer-events-none opacity-0 transition-opacity duration-150 z-30"></div>
+                        </div>
+                        
+                        <!-- 2. Captured Photo Snapshot Preview -->
+                        <div id="photo-preview-container" class="absolute inset-0 hidden w-full h-full bg-black z-20">
+                            <img id="photo-preview-img" class="w-full h-full object-cover -scale-x-100" alt="Captured selfie" />
+                            <div class="absolute top-4 right-4 bg-status-pass text-white text-xs font-semibold px-3 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg">
+                                <i data-lucide="check-circle-2" class="w-4 h-4"></i> Photo Captured
+                            </div>
+                            <div class="absolute bottom-4 left-4 right-4 flex items-center justify-between bg-black/70 backdrop-blur-md p-3 rounded-xl border border-white/10 text-white text-xs">
+                                <div>
+                                    <p class="font-semibold" id="captured-meta-title">Live Biometric Capture</p>
+                                    <p class="text-[11px] text-white/60 font-mono" id="captured-meta-info">Ready for FaceNet Match</p>
+                                </div>
+                                <button type="button" id="btn-retake-photo" class="px-3.5 py-1.5 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition-colors flex items-center gap-1.5 text-xs" onclick="retakePhoto()">
+                                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Retake
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 3. Camera Unavailable / Fallback -->
+                        <div id="camera-error-container" class="absolute inset-0 hidden flex flex-col items-center justify-center bg-base p-6 text-center z-20">
+                            <div class="w-16 h-16 rounded-full bg-status-fail/10 text-status-fail flex items-center justify-center mb-4">
+                                <i data-lucide="camera-off" class="w-8 h-8"></i>
+                            </div>
+                            <h4 class="text-lg font-bold text-ink mb-1">Camera Access Unavailable</h4>
+                            <p id="camera-error-msg" class="text-xs text-ink/60 max-w-xs mb-5">Please allow webcam access or upload a selfie photo directly.</p>
+                            <button type="button" class="btn-primary py-2.5 px-5 text-sm font-semibold rounded-xl flex items-center gap-2" onclick="triggerPhotoUpload(event)">
+                                <i data-lucide="upload" class="w-4 h-4"></i> Choose Photo File
+                            </button>
+                        </div>
+
+                        <!-- Hidden Offscreen Canvas for Snapshot -->
+                        <canvas id="webcam-canvas" class="hidden"></canvas>
+                    </div>
+
+                    <!-- Autonomous Auto-Capture Guidance & Action Bar -->
+                    <div class="mt-4 flex items-center justify-between p-3 bg-base border border-hairline rounded-xl text-xs">
+                        <div class="flex items-center gap-2 text-status-pass font-semibold">
+                            <span class="w-2.5 h-2.5 rounded-full bg-status-pass animate-ping"></span>
+                            <span class="flex items-center gap-1.5"><i data-lucide="scan-face" class="w-4 h-4"></i> Auto-capture active • Center face inside oval</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <button id="btn-switch-cam" type="button" title="Switch camera" class="p-2 bg-white border border-hairline rounded-lg text-ink/70 hover:text-ink hover:border-ink/30 transition-colors shadow-sm" onclick="switchCamera()">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                            </button>
+                            <button id="btn-upload-photo" type="button" class="hover:text-primary underline font-medium text-ink/60 transition-colors" onclick="triggerPhotoUpload(event)">Upload file instead</button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-auto pt-8 flex justify-center">
+                <button id="btn-submit-verify" class="btn-primary w-full max-w-lg py-5 text-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-primary/20 hover:-translate-y-1" disabled onclick="submitVerification()">
+                    Submit for Verification
+                </button>
+            </div>
+            </div>
+        </section>
+
+        <!-- ============================================== -->
+        <!-- SCREEN 6: RESULT (BORDER CLEARANCE CERTIFICATE) -->
+        <!-- ============================================== -->
+        <section id="screen-result" class="screen items-center justify-center p-4 md:p-10 w-full bg-base">
+            <div class="bento-tile p-6 md:p-10 flex flex-col max-w-4xl w-full relative overflow-hidden shadow-2xl border border-hairline">
+                <div class="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none"></div>
+
+                <!-- Header Bar -->
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-hairline relative z-10">
+                    <div>
+                        <div class="flex items-center gap-3">
+                            <h2 class="font-display text-2xl md:text-3xl font-bold text-ink">Verification Report</h2>
+                            <span id="traveler-verdict-badge" class="badge bg-status-pass text-white text-xs px-3 py-1 font-bold tracking-wider uppercase">CLEARED</span>
+                        </div>
+                        <p id="traveler-verdict-subtitle" class="text-xs md:text-sm text-ink/60 mt-1">Continuous Zero-Trust Border Intelligence • MTCNN + FaceNet Engine</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <span class="text-[10px] text-ink/50 uppercase tracking-widest font-bold block">Trust Score</span>
+                            <span id="traveler-score-num" class="font-mono text-3xl font-black text-ink">92<span class="text-sm font-normal text-ink/50">/100</span></span>
+                        </div>
+                        <div id="traveler-score-ring" class="w-14 h-14 rounded-full border-4 border-status-pass flex items-center justify-center bg-status-pass/10 text-status-pass transition-colors">
+                            <i data-lucide="shield-check" class="w-7 h-7" id="traveler-score-icon"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GENUINE BIOMETRIC FACE VERIFICATION CARD -->
+                <div class="mt-6 bento-tile p-6 bg-slate-50 border border-hairline relative z-10">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
+                                <i data-lucide="scan-face" class="w-5 h-5"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-base font-bold text-ink">Biometric Facial Verification</h4>
+                                <p class="text-xs text-ink/50 font-mono">InceptionResnetV1 (VGGFace2 512-D) • MTCNN Cropping</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span id="face-match-status-badge" class="badge badge-success text-xs font-bold px-3 py-1 uppercase">MATCH CONFIRMED</span>
+                        </div>
+                    </div>
+
+                    <!-- Photos Comparison Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-11 gap-4 items-center">
+                        <!-- Doc Photo Thumbnail -->
+                        <div class="md:col-span-4 bg-white p-3 rounded-xl border border-hairline shadow-sm flex flex-col items-center text-center">
+                            <div class="w-28 h-36 rounded-lg overflow-hidden bg-base border border-hairline relative mb-2 flex items-center justify-center">
+                                <img id="result-doc-photo" class="w-full h-full object-cover" alt="Document Face" />
+                                <span class="absolute bottom-1 left-1 right-1 bg-black/60 backdrop-blur-xs text-[9px] font-mono text-white/90 rounded px-1 py-0.5">ID BIOMETRIC</span>
+                            </div>
+                            <span class="text-xs font-semibold text-ink" id="result-doc-holder-name">Document Photo</span>
+                            <span class="text-[10px] text-ink/50 font-mono" id="result-doc-id-label">Extracted via MTCNN</span>
+                        </div>
+
+                        <!-- Neural Similarity Bridge -->
+                        <div class="md:col-span-3 flex flex-col items-center justify-center text-center px-2 py-3 bg-white/60 rounded-xl border border-hairline/60">
+                            <span class="text-[10px] uppercase tracking-wider font-bold text-ink/50 mb-1">FaceNet Match</span>
+                            <div class="font-mono text-3xl font-black text-primary" id="result-face-confidence">
+                                91.4%
+                            </div>
+                            <div class="text-[11px] font-mono font-medium text-ink/60 mt-1" id="result-face-cosine">
+                                Raw Cosine: 0.7621
+                            </div>
+                            <div class="w-full bg-base h-2 rounded-full mt-2 overflow-hidden border border-hairline">
+                                <div id="result-face-bar" class="h-full bg-primary rounded-full transition-all duration-700" style="width: 91.4%"></div>
+                            </div>
+                            <span class="text-[10px] font-mono text-status-pass mt-2" id="result-liveness-pill">
+                                ✓ Passive Liveness: 92.8%
+                            </span>
+                        </div>
+
+                        <!-- Live Selfie Thumbnail -->
+                        <div class="md:col-span-4 bg-white p-3 rounded-xl border border-hairline shadow-sm flex flex-col items-center text-center">
+                            <div class="w-28 h-36 rounded-lg overflow-hidden bg-base border border-hairline relative mb-2 flex items-center justify-center">
+                                <img id="result-live-photo" class="w-full h-full object-cover -scale-x-100" alt="Live Selfie" />
+                                <span class="absolute bottom-1 left-1 right-1 bg-black/60 backdrop-blur-xs text-[9px] font-mono text-white/90 rounded px-1 py-0.5">LIVE WEBCAM</span>
+                            </div>
+                            <span class="text-xs font-semibold text-ink">Live Camera Capture</span>
+                            <span class="text-[10px] text-ink/50 font-mono" id="result-live-meta">Checkpoint HD Feed</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4-Pillar Trust Verification Details -->
+                <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
+                    <div class="bg-white p-4 rounded-xl border border-hairline">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-ink/60 mb-1">
+                            <i data-lucide="file-check" class="w-4 h-4 text-primary"></i> Doc Checksum
+                        </div>
+                        <div id="metric-doc-valid" class="text-sm font-bold text-status-pass">ICAO 9303 Valid</div>
+                        <div id="metric-doc-type" class="text-[11px] font-mono text-ink/50 mt-0.5">PASSPORT #--</div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-hairline">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-ink/60 mb-1">
+                            <i data-lucide="microscope" class="w-4 h-4 text-primary"></i> Tamper Forensics
+                        </div>
+                        <div id="metric-forensics" class="text-sm font-bold text-status-pass">Clean (Score: 0.0)</div>
+                        <div class="text-[11px] font-mono text-ink/50 mt-0.5">ELA / FFT Spectral</div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-hairline">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-ink/60 mb-1">
+                            <i data-lucide="network" class="w-4 h-4 text-primary"></i> Graph DNA
+                        </div>
+                        <div id="metric-graph" class="text-sm font-bold text-status-pass">Single Identity</div>
+                        <div class="text-[11px] font-mono text-ink/50 mt-0.5">No Fracture</div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl border border-hairline">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-ink/60 mb-1">
+                            <i data-lucide="database" class="w-4 h-4 text-primary"></i> SHA-256 Ledger
+                        </div>
+                        <div id="metric-ledger" class="text-sm font-bold text-ink">Block #--</div>
+                        <div id="metric-ledger-hash" class="text-[11px] font-mono text-ink/50 mt-0.5 truncate">Hash: --</div>
+                    </div>
+                </div>
+
+                <!-- Explanation / Advisory Text -->
+                <div class="mt-6 p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-start gap-3 relative z-10">
+                    <i data-lucide="info" class="w-5 h-5 text-primary shrink-0 mt-0.5"></i>
+                    <p id="traveler-verdict-desc" class="text-xs md:text-sm text-ink/80 leading-relaxed">
+                        Your biometric facial embedding matched the identity document photograph with high neural confidence. The immutable Zero-Trust evidence chain is intact.
+                    </p>
+                </div>
+
+                <!-- Reference and Action Buttons -->
+                <div class="mt-6 pt-6 border-t border-hairline flex flex-col md:flex-row items-center justify-between gap-4 relative z-10">
+                    <div class="text-xs font-mono text-ink/50">
+                        Verification Ref: <span id="traveler-verification-id" class="font-bold text-ink">--</span>
+                    </div>
+                    <div class="flex items-center gap-3 w-full md:w-auto">
+                        <button type="button" class="btn-outline py-3 px-6 text-sm font-semibold rounded-xl flex-grow md:flex-grow-0" onclick="showScreen('screen-verify', true)">
+                            Verify Another
+                        </button>
+                        <button type="button" id="btn-return-dashboard" class="btn-primary py-3 px-6 text-sm font-semibold rounded-xl flex-grow md:flex-grow-0 flex items-center justify-center gap-2" onclick="showScreen('screen-landing')" data-nav="screen-landing">
+                            <i data-lucide="home" class="w-4 h-4"></i> Return to Dashboard
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Real-Time Client-Side Face Detection Model (BlazeFace via WebGL) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js"></script>
+    <script src="app.js?v=10"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

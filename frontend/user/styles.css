@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+    
+    /* Bento Card / Tile */
+    .bento-tile {
+        @apply bg-white rounded-xl border border-hairline shadow-bento;
+    }
+
+    /* Buttons */
+    .btn-primary {
+        @apply bg-accent text-white font-semibold rounded-lg hover:bg-accent/90 focus:ring-4 focus:ring-accent/20 transition-all outline-none;
+    }
+    
+    .btn-outline {
+        @apply bg-transparent text-ink border border-ink/20 font-semibold rounded-lg hover:bg-ink/5 focus:ring-4 focus:ring-ink/10 transition-all outline-none;
+    }
+
+    /* Form Input */
+    .form-input {
+        @apply bg-base border border-hairline rounded-lg px-4 py-2.5 text-ink outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all placeholder:text-ink/40;
+    }
+
+    /* Badges / Pills */
+    .badge {
+        @apply inline-flex items-center justify-center rounded-full text-xs font-semibold px-2.5 py-1 tracking-wide;
+    }
+    
+    .badge-success {
+        @apply bg-status-pass/10 text-status-pass;
+    }
+    
+    .badge-warning {
+        @apply bg-status-review/10 text-status-review;
+    }
+    
+    .badge-fail {
+        @apply bg-status-fail/10 text-status-fail;
+    }
+}
+
+/* Custom CSS outside of Tailwind layers if needed */
+.trust-gauge-container circle {
+    transition: stroke-dashoffset 1s ease-out;
+}

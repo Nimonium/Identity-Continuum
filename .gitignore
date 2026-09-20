@@ -1,0 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest / caches
+.pytest_cache/
+.cache/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+backend/data/*.db
+
+# User dynamic uploads (passports, live camera captures)
+backend/static/uploads/*
+!backend/static/uploads/.gitkeep
+
+# Environment and virtual environments
+.env
+.env.*
+venv/
+.venv/
+env/
+
+# Node modules
+node_modules/
+
+# Screenshots (generated test artifacts)
+backend/static/screenshots/*
+
+# OS metadata
+Thumbs.db
+.DS_Store
