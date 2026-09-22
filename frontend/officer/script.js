@@ -389,7 +389,19 @@ async function loadVerificationQueue(forceSelectNewest = false) {
     verifs.forEach((v, idx) => {
       const opt = document.createElement('option');
       opt.value = v.id;
-      const statusLabel = v.fracture_detected ? '[FRACTURE]' : (v.trust_score >= 80 ? '[INTACT]' : '[FLAGGED]');
+      let statusLabel = '[PENDING]';
+      if (v.officer_decision && v.officer_decision !== 'PENDING') {
+        if (v.officer_decision === 'CLEARED') statusLabel = '[CLEARED]';
+        else if (v.officer_decision === 'REFERRED_TO_SECONDARY') statusLabel = '[REFERRED]';
+        else if (v.officer_decision === 'DENIED_ENTRY') statusLabel = '[DENIED]';
+        else statusLabel = `[${v.officer_decision}]`;
+      } else if (v.fracture_detected) {
+        statusLabel = '[FRACTURE]';
+      } else if (v.trust_score >= 80) {
+        statusLabel = '[INTACT]';
+      } else {
+        statusLabel = '[FLAGGED]';
+      }
       const timeStr = v.timestamp ? v.timestamp.substring(11, 19) : '';
       const docStr = v.document_number && v.document_number !== 'NONE' ? v.document_number : 'PASSPORT';
       opt.textContent = `${statusLabel} ${v.holder_name} (${docStr}) — ${Math.round(v.trust_score)}/100 ${timeStr ? '• ' + timeStr : ''}`;
@@ -572,7 +584,21 @@ async function loadVerificationDetail(verifId) {
     // Overall Verdict Badge
     const isIntact = !data.fracture_detected && (data.trust_chain_broken_layer === 'NONE' || !data.trust_chain_broken_layer) && trustScore >= 80;
     if (verdictBadge) {
-      if (data.fracture_detected) {
+      if (data.officer_decision && data.officer_decision !== 'PENDING') {
+        if (data.officer_decision === 'CLEARED') {
+          verdictBadge.className = 'badge badge-emerald';
+          verdictBadge.textContent = 'OFFICER CLEARED';
+        } else if (data.officer_decision === 'REFERRED_TO_SECONDARY') {
+          verdictBadge.className = 'badge badge-amber';
+          verdictBadge.textContent = 'REFERRED TO SECONDARY (OFFICER OVERRIDE)';
+        } else if (data.officer_decision === 'DENIED_ENTRY') {
+          verdictBadge.className = 'badge badge-crimson';
+          verdictBadge.textContent = 'ENTRY DENIED (OFFICER OVERRIDE)';
+        } else {
+          verdictBadge.className = 'badge badge-cyan';
+          verdictBadge.textContent = `DECISION: ${data.officer_decision}`;
+        }
+      } else if (data.fracture_detected) {
         verdictBadge.className = 'badge badge-crimson';
         verdictBadge.textContent = 'IDENTITY FRACTURE DETECTED';
       } else if (isIntact) {
@@ -654,6 +680,42 @@ async function loadVerificationDetail(verifId) {
     }
     if (l5Desc) l5Desc.textContent = `Border manifest timeline and physical checkpoint entry sequence mathematically validated.`;
 
+    // Sync Officer Decision & Ledger Override UI State
+    const decisionPill = document.getElementById('officer-decision-status-pill');
+    const reasonInput = document.getElementById('officer-decision-reason');
+    if (data.officer_decision && data.officer_decision !== 'PENDING') {
+      if (decisionPill) {
+        decisionPill.style.display = 'inline-block';
+        if (data.officer_decision === 'CLEARED') {
+          decisionPill.className = 'badge badge-emerald';
+          decisionPill.textContent = 'CURRENT STATUS: CLEARED';
+        } else if (data.officer_decision === 'REFERRED_TO_SECONDARY') {
+          decisionPill.className = 'badge badge-amber';
+          decisionPill.textContent = 'CURRENT STATUS: REFERRED TO SECONDARY';
+        } else if (data.officer_decision === 'DENIED_ENTRY') {
+          decisionPill.className = 'badge badge-crimson';
+          decisionPill.textContent = 'CURRENT STATUS: DENIED ENTRY';
+        } else {
+          decisionPill.className = 'badge badge-cyan';
+          decisionPill.textContent = `STATUS: ${data.officer_decision}`;
+        }
+      }
+      const radio = document.querySelector(`input[name="officer-decision-radio"][value="${data.officer_decision}"]`);
+      if (radio) radio.checked = true;
+      if (reasonInput && data.officer_notes) {
+        reasonInput.value = data.officer_notes;
+      }
+    } else {
+      if (decisionPill) {
+        decisionPill.style.display = 'inline-block';
+        decisionPill.className = 'badge badge-cyan';
+        decisionPill.textContent = 'DECISION: PENDING REVIEW';
+      }
+      const defaultRadio = document.querySelector('input[name="officer-decision-radio"][value="CLEARED"]');
+      if (defaultRadio) defaultRadio.checked = true;
+      if (reasonInput) reasonInput.value = '';
+    }
+
   } catch (err) {
     console.error('Error loading verification detail:', err);
   }
@@ -699,8 +761,9 @@ if (btnSubmitDecision) {
         statusMsg.classList.remove('hidden');
       }
 
-      // Refresh verification list
-      loadVerificationQueue();
+      // Refresh verification list and update active detail view in real-time
+      await loadVerificationQueue();
+      await loadVerificationDetail(state.activeVerificationId);
 
     } catch (err) {
       console.error('Error recording officer decision:', err);

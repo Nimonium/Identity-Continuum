@@ -1015,16 +1015,18 @@ async function submitVerification() {
 // ============================================================================
 
 function renderTravelerResult(data) {
-    const trust = data.trust_evaluation || {};
-    const face = data.face_match || {};
-    const intake = data.intake || {};
+    const details = data.details || {};
+    const trust = data.trust_evaluation || details.trust_evaluation || {};
+    const face = data.face_match || details.face_match || {};
+    const intake = data.intake || details.intake || {};
     const structured = intake.structured_data || {};
-    const forensics = data.forensics || {};
-    const secondLook = data.second_look || {};
-    const fractureDetected = data.fracture_detected || false;
+    const forensics = data.forensics || details.forensics || {};
+    const secondLook = data.second_look || details.second_look || {};
+    const fractureDetected = data.fracture_detected !== undefined ? data.fracture_detected : (details.fracture_detected || false);
+    const officerDecision = data.officer_decision || (data.details && data.details.officer_decision);
 
     // 1. Trust Score & Verdict
-    const score = Math.round(trust.identity_trust_score !== undefined ? trust.identity_trust_score : 90);
+    const score = Math.round(trust.identity_trust_score !== undefined ? trust.identity_trust_score : (data.trust_score !== undefined ? data.trust_score : 90));
     const isIntact = trust.is_trust_chain_intact !== undefined ? trust.is_trust_chain_intact : (score >= 80 && !fractureDetected);
     
     const scoreNum = document.getElementById('traveler-score-num');
@@ -1035,9 +1037,41 @@ function renderTravelerResult(data) {
     const refId = document.getElementById('traveler-verification-id');
 
     if (scoreNum) scoreNum.innerHTML = `${score}<span class="text-sm font-normal text-ink/50">/100</span>`;
-    if (refId) refId.textContent = data.verification_id || '--';
+    if (refId) refId.textContent = data.verification_id || data.id || '--';
 
-    if (isIntact && score >= 80) {
+    if (officerDecision && officerDecision !== 'PENDING') {
+        if (officerDecision === 'CLEARED') {
+            if (scoreRing) scoreRing.className = 'w-14 h-14 rounded-full border-4 border-status-pass flex items-center justify-center bg-status-pass/10 text-status-pass transition-colors';
+            if (scoreIcon) scoreIcon.setAttribute('data-lucide', 'shield-check');
+            if (verdictBadge) {
+                verdictBadge.className = 'badge bg-status-pass text-white text-xs px-3 py-1 font-bold tracking-wider uppercase';
+                verdictBadge.textContent = 'CLEARED BY OFFICER';
+            }
+            if (verdictDesc) {
+                verdictDesc.textContent = 'Border Control Officer has reviewed and cleared your entry into the terminal. You are approved for travel.';
+            }
+        } else if (officerDecision === 'REFERRED_TO_SECONDARY') {
+            if (scoreRing) scoreRing.className = 'w-14 h-14 rounded-full border-4 border-status-review flex items-center justify-center bg-status-review/10 text-status-review transition-colors';
+            if (scoreIcon) scoreIcon.setAttribute('data-lucide', 'help-circle');
+            if (verdictBadge) {
+                verdictBadge.className = 'badge bg-status-review text-white text-xs px-3 py-1 font-bold tracking-wider uppercase';
+                verdictBadge.textContent = 'REFERRED TO SECONDARY';
+            }
+            if (verdictDesc) {
+                verdictDesc.textContent = 'Border Control Officer has referred this travel record for secondary physical inspection. Please proceed to Inspection Desk / Booth 4.';
+            }
+        } else if (officerDecision === 'DENIED_ENTRY') {
+            if (scoreRing) scoreRing.className = 'w-14 h-14 rounded-full border-4 border-status-fail flex items-center justify-center bg-status-fail/10 text-status-fail transition-colors';
+            if (scoreIcon) scoreIcon.setAttribute('data-lucide', 'shield-alert');
+            if (verdictBadge) {
+                verdictBadge.className = 'badge bg-status-fail text-white text-xs px-3 py-1 font-bold tracking-wider uppercase';
+                verdictBadge.textContent = 'ENTRY DENIED';
+            }
+            if (verdictDesc) {
+                verdictDesc.textContent = 'Border clearance has been denied by border command authority. Please contact the border security service desk immediately.';
+            }
+        }
+    } else if (isIntact && score >= 80) {
         if (scoreRing) scoreRing.className = 'w-14 h-14 rounded-full border-4 border-status-pass flex items-center justify-center bg-status-pass/10 text-status-pass transition-colors';
         if (scoreIcon) scoreIcon.setAttribute('data-lucide', 'shield-check');
         if (verdictBadge) {
@@ -1179,6 +1213,32 @@ function renderTravelerResult(data) {
     if (ledgerEl) ledgerEl.textContent = `Block #${data.audit_block_index !== undefined ? data.audit_block_index : '--'}`;
     if (ledgerHashEl) ledgerHashEl.textContent = `Hash: ${(data.audit_block_hash || 'SHA-256').substring(0, 16)}...`;
 
+    if (window._officerDecisionPollInterval) {
+        clearInterval(window._officerDecisionPollInterval);
+        window._officerDecisionPollInterval = null;
+    }
+    const verifId = data.verification_id || data.id;
+    if (verifId && (!data.officer_decision || data.officer_decision === 'PENDING')) {
+        window._officerDecisionPollInterval = setInterval(async () => {
+            const resultScreen = document.getElementById('screen-result');
+            if (!resultScreen || resultScreen.classList.contains('hidden')) {
+                clearInterval(window._officerDecisionPollInterval);
+                window._officerDecisionPollInterval = null;
+                return;
+            }
+            try {
+                const res = await fetch(`/api/verification/${verifId}`);
+                if (!res.ok) return;
+                const rec = await res.json();
+                if (rec.officer_decision && rec.officer_decision !== 'PENDING') {
+                    clearInterval(window._officerDecisionPollInterval);
+                    window._officerDecisionPollInterval = null;
+                    renderTravelerResult(rec);
+                }
+            } catch (_) {}
+        }, 2000);
+    }
+
     if (window.lucide) window.lucide.createIcons();
 }
 
@@ -1220,7 +1280,18 @@ async function loadTravelerHistory(isManual = false) {
             let badgeClass = 'badge-success';
             let badgeText = 'CLEARED';
             
-            if (isOfficerReview) {
+            if (rec.officer_decision && rec.officer_decision !== 'PENDING') {
+                if (rec.officer_decision === 'CLEARED') {
+                    badgeClass = 'badge-success';
+                    badgeText = 'CLEARED (OFFICER)';
+                } else if (rec.officer_decision === 'REFERRED_TO_SECONDARY') {
+                    badgeClass = 'badge-warning';
+                    badgeText = 'SECONDARY REVIEW';
+                } else if (rec.officer_decision === 'DENIED_ENTRY') {
+                    badgeClass = 'badge-fail';
+                    badgeText = 'ENTRY DENIED';
+                }
+            } else if (isOfficerReview) {
                 badgeClass = 'badge-fail';
                 badgeText = 'OFFICER REVIEW';
             } else if (!isCleared) {
